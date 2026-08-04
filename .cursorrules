@@ -1,0 +1,508 @@
+# ShipSafe SaaS Boilerplate – Cursor Rules
+
+You are an expert full-stack engineer working on **ShipSafe**, a secure SaaS boilerplate built with Next.js, TypeScript, Firebase, Stripe, TailwindCSS, DaisyUI, Zod, and a clean domain-driven architecture.
+
+**Status:** v1.0 - Production-ready reference implementation  
+**Validated:** Production-tested in ThinkMate.online  
+**Philosophy:** *Secure + Simple*
+
+Your output MUST follow the ShipSafe architecture and conventions described below.
+
+---
+
+## 🚀 Project Overview
+
+### 🧩 Tech Stack
+- **Framework**: Next.js 15 (App Router)
+- **Language**: TypeScript
+- **Styling**: TailwindCSS + DaisyUI
+- **Auth (Client)**: Firebase Authentication (Password + Google OAuth)
+- **Auth (Server)**: Firebase Admin SDK
+- **Database**: Firestore (via Firebase Admin)
+- **Payments**: Stripe Checkout, Stripe Billing, Webhooks
+- **Validation**: Zod
+- **Architecture**: Domain-driven folder structure with `features/`
+- **Philosophy**: *Secure + Simple*
+
+---
+
+## 📁 File Structure Rules
+
+### App Router
+All routing lives in `src/app/`
+
+- Pages → `src/app/<route>/page.tsx`
+- Layouts → `src/app/<route>/layout.tsx`
+- API endpoints → `src/app/api/<endpoint>/route.ts`
+
+### Components
+**UI components:**
+    `src/components/ui/`
+
+**Marketing templates (Hero, CTA, FAQ, Pricing):**
+    `src/components/templates/`
+
+Rules:
+- Components always use **PascalCase**
+- All components are **.tsx**
+- Add `"use client"` ONLY when required
+
+### Features (Business Logic Layer)
+Located in:
+    `src/features/<domain>/`
+
+- Contains logic ONLY — never React
+- Always `.ts`, not `.tsx`
+- Split by domain:
+  - `auth/`
+  - `billing/`
+  - `user/`
+  - `utils/`
+- Includes Zod schemas, service functions, validations
+- Never imports React or UI components
+
+### Lib Folder
+Located in:
+    `src/lib/`
+
+Contains:
+- Firebase client
+- Firebase admin initialization
+- Stripe client
+- Stripe helpers
+- Generic utility functions
+
+### Models
+Located in: 
+    `src/models/`
+
+- TypeScript interfaces (User, Subscription, etc.)
+- No React, no Firebase calls
+
+### Config
+Single source of application configuration:
+    `config.ts`
+
+
+Includes:
+- App name
+- Domain name
+- Auth URLs
+- Stripe plans
+- Theme settings (DaisyUI)
+- Support email
+
+---
+
+## ✨ Naming Conventions
+
+- **Components** → `PascalCase.tsx`  
+- **Features** → `camelCase.ts`  
+- **API route folders** → `kebab-case`  
+- **API route file** → `route.ts`  
+- **Constants** → `UPPER_SNAKE_CASE`  
+- **Files returning JSX** → `.tsx`  
+- **Pure logic files** → `.ts`  
+
+---
+
+## 🔐 Security Requirements
+
+ShipSafe implements a **7-layer security architecture** (production-tested in ThinkMate):
+1. **HTTPS Enforcement** - Automatic HTTP → HTTPS redirect in production
+2. **Rate Limiting** - IP-based rate limiting to prevent abuse
+3. **API Firewall** - Blocks invalid requests before route handlers
+4. **CSRF Protection** - Double-submit cookie pattern (webhooks excluded)
+5. **Security Headers** - Complete HTTP security headers (CSP, HSTS, etc.)
+6. **Authentication Guard** - Protects routes requiring auth (401 for APIs, redirect for pages)
+7. **Audit Logging** - Security event tracking for monitoring
+
+Cursor MUST enforce:
+
+### Input Validation
+- Use **Zod** schemas for ALL incoming API payloads.
+- Never trust request body directly.
+- Always return safe error messages.
+
+### Firebase Auth (Client)
+- Use `firebase/auth` for client login/signup.
+- Never expose admin SDK in client-side code.
+- Handle missing configuration gracefully (show helpful error messages).
+
+### Firebase Admin (Server)
+- Use `firebase-admin` only in server routes or server-side utilities.
+- Must verify ID tokens using Admin SDK for protected routes.
+- Never call Admin SDK in client components.
+- Use `getEnv()` helper for secure environment variable access.
+
+### Stripe Billing
+- Use Stripe Checkout for purchases.
+- Store subscription state in Firestore (via admin).
+- Update user records through webhook events.
+
+### Stripe Webhooks
+- MUST use raw request body (not parsed JSON).
+- MUST validate signature with `stripe.webhooks.constructEvent`.
+- MUST update user subscription state securely.
+- **CRITICAL:** Webhooks are excluded from CSRF protection (use signature verification instead).
+
+### Middleware Security Patterns
+- **Webhook Exclusion:** `/api/webhooks/*` routes excluded from CSRF protection
+- **API Route Auth:** Return `401 Unauthorized` (JSON) for API routes, redirect for pages
+- **CSRF Cookie:** Only set on GET requests (performance optimization)
+- **Enhanced Logging:** Log all security events for monitoring
+
+### Rate Limiting
+For routes like:
+- `/api/checkout`
+- `/api/auth/*`
+- `/api/user/*`
+Cursor should implement lightweight rate limits.
+
+---
+
+## 🔌 API Route Pattern
+
+All API routes follow this pattern:
+
+```ts
+/**
+ * -----------------------------------------------------------------------------
+ * ShipSafe API — /api/<endpoint>
+ * -----------------------------------------------------------------------------
+ * [Brief description of what this endpoint does]
+ * 
+ * Security:
+ *   - Authentication required (requireAuth from core)
+ *   - CSRF protection (middleware)
+ *   - Rate limiting (middleware)
+ *   - Input validation (Zod)
+ * 
+ * -----------------------------------------------------------------------------
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { requireAuth } from "@/lib/firebase/auth";
+import { someSchema } from "@/features/<domain>/schema";
+import { doSomething } from "@/features/<domain>/server";
+
+export async function POST(req: NextRequest) {
+  try {
+    // 1. Authenticate user
+    const user = await requireAuth(req);
+    
+    // 2. Parse and validate request body
+    const body = await req.json();
+    const parsed = someSchema.parse(body);
+
+    // 3. Execute business logic (in features/<domain>/server.ts)
+    const result = await doSomething(user.uid, parsed);
+
+    // 4. Return success response
+    return NextResponse.json({ success: true, data: result }, { status: 200 });
+  } catch (error) {
+    // Handle specific error types
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Invalid request data", details: error.errors },
+        { status: 400 }
+      );
+    }
+    
+    if (error instanceof Error && error.message.includes("Unauthorized")) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    // Log and return generic error
+    console.error("API error:", error);
+    return NextResponse.json(
+      { error: "Server error" },
+      { status: 500 }
+    );
+  }
+}
+```
+
+**Key Points:**
+- Always use `requireAuth` from `@/lib/firebase/auth` (not `verifyAuth`)
+- Put business logic in `features/<domain>/server.ts`, not in the route
+- Use Zod schemas from `features/<domain>/schema.ts`
+- Return consistent response format: `{ success: boolean, data?: any, error?: string }`
+- Handle Zod errors with 400 status
+- Handle auth errors with 401 status
+- Log errors but don't expose internal details
+
+## 🎨 UI/UX Rules
+
+### Styling Guidelines
+- Use TailwindCSS utility classes exclusively
+- Use DaisyUI components for consistent styling:
+  - Buttons: `btn`, `btn-primary`, `btn-secondary`, `btn-outline`, `btn-ghost`
+  - Forms: `input`, `textarea`, `select`, `checkbox`, `radio`
+  - Cards: `card`, `card-body`, `card-title`
+  - Alerts: `alert`, `alert-success`, `alert-error`, `alert-warning`
+  - Badges: `badge`, `badge-primary`, `badge-success`
+  - Loading: `loading`, `loading-spinner`, `loading-dots`
+- Always ensure responsive behavior via Tailwind breakpoints:
+  - Mobile-first: base styles for mobile
+  - `md:` for tablet (768px+)
+  - `lg:` for desktop (1024px+)
+  - `xl:` for large desktop (1280px+)
+
+### Component Patterns
+- Add loading states: `{isLoading && <span className="loading loading-spinner" />}`
+- Use DaisyUI theme colors: `bg-primary`, `text-primary`, `border-primary`
+- Support dark mode automatically (DaisyUI handles this)
+- Use semantic HTML elements
+- Ensure accessibility (ARIA labels, keyboard navigation)
+
+### Responsive Examples
+```tsx
+// Mobile-first responsive grid
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+// Responsive text sizes
+<h1 className="text-2xl md:text-3xl lg:text-4xl">
+
+// Responsive spacing
+<div className="p-4 md:p-6 lg:p-8">
+```
+
+## 🎯 React Component Conventions
+
+### Server Components (Default)
+- **Default to Server Components** - No "use client" directive
+- Fetch data directly in Server Components using async/await
+- Access Firebase Admin SDK, database, and server-only APIs
+- Better performance, SEO, and security
+
+**Example:**
+```tsx
+// src/app/dashboard/page.tsx (Server Component)
+import { requireAuth } from "@/lib/firebase/auth";
+import { getFirestoreInstance } from "@/lib/firebase/init";
+
+export default async function DashboardPage() {
+  const user = await requireAuth();
+  const db = getFirestoreInstance();
+  // Fetch data server-side
+  const userData = await db.collection("users").doc(user.uid).get();
+  
+  return <div>{/* Render with data */}</div>;
+}
+```
+
+### Client Components (When Needed)
+- Add `"use client"` ONLY when you need:
+  - React hooks (`useState`, `useEffect`, `useCallback`, etc.)
+  - Browser APIs (`window`, `document`, `localStorage`, etc.)
+  - Event handlers (`onClick`, `onChange`, etc.)
+  - Third-party client libraries
+- Keep Client Components small and focused
+- Pass data from Server Components as props
+
+**Example:**
+```tsx
+// src/components/forms/LoginForm.tsx (Client Component)
+"use client";
+
+import { useState } from "react";
+
+export default function LoginForm() {
+  const [email, setEmail] = useState("");
+  // Client-side interactivity
+  return <form>{/* Form JSX */}</form>;
+}
+```
+
+### Best Practices
+- Use `@/config` for global config values (import from root `config.ts`)
+- Avoid unnecessary client-side re-renders
+- Prefer server-side data fetching for dashboard pages
+- Split large components: Server Component fetches data, Client Component handles interactivity
+- Use Server Actions for form submissions when possible
+
+## 🌍 Environment Variables
+
+### Required Variables
+
+**Firebase Client (Public - NEXT_PUBLIC_ prefix):**
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `NEXT_PUBLIC_FIREBASE_APP_ID`
+
+**Firebase Admin (Private - Server-only):**
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY` (must include escaped newlines: `\n`)
+- `FIREBASE_DATABASE_URL`
+
+**Stripe:**
+- `STRIPE_SECRET_KEY` (use `sk_live_` in production)
+- `STRIPE_PUBLIC_KEY` (use `pk_live_` in production)
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICE_STARTER`
+- `STRIPE_PRICE_PRO`
+
+**Application:**
+- `APP_DOMAIN` (production domain, no https://, no trailing slash)
+- `NODE_ENV` (set to `production` in production)
+
+### Environment Variable Access
+
+**Always use `getEnv()` helper for secure access:**
+```ts
+import { getEnv } from "@/lib/security/env";
+
+// ✅ Good - Throws helpful error if missing
+const secretKey = getEnv("STRIPE_SECRET_KEY");
+
+// ✅ Good - With fallback
+const apiKey = getEnv("API_KEY", "default-value");
+
+// ❌ Bad - Direct access (no validation)
+const secretKey = process.env.STRIPE_SECRET_KEY; // Could be undefined
+```
+
+**Firebase Client Configuration:**
+- Gracefully handle missing configuration (show helpful setup instructions)
+- Never crash the app if Firebase isn't configured yet (boilerplate-friendly)
+
+## 🧪 Development Commands
+
+npm run dev → start development
+npm run build → production build
+npm run lint → lint only
+stripe listen → proxy webhook events
+
+## 🚀 Deployment Considerations
+
+- Set all env variables in hosting platform
+- Ensure Firebase Admin private key is escaped
+- Configure Stripe webhooks endpoint properly
+- Lock domain in config (domainName)
+- Enable HTTPS before production auth
+
+## 📝 Code Documentation Standards
+
+### File Headers
+Every file should start with a header comment:
+
+```ts
+/**
+ * -----------------------------------------------------------------------------
+ * ShipSafe [Category] — [File Name]
+ * -----------------------------------------------------------------------------
+ * [Brief description of what this file does]
+ * 
+ * [Optional: Why this exists, key features, usage examples]
+ * 
+ * Security:
+ *   - [Security considerations if applicable]
+ * 
+ * Used by:
+ *   - [List of files/components that use this]
+ * 
+ * -----------------------------------------------------------------------------
+ */
+```
+
+### Function Documentation
+Use JSDoc for exported functions:
+
+```ts
+/**
+ * createUser() — creates a new user in Firestore.
+ * 
+ * @param userData - User data object with email, name, etc.
+ * @returns Promise<User> - Created user object
+ * @throws Error if user already exists
+ * 
+ * @example
+ * ```ts
+ * const user = await createUser({ email: "user@example.com", name: "John" });
+ * ```
+ */
+export async function createUser(userData: UserData): Promise<User> {
+  // Implementation
+}
+```
+
+### Component Documentation
+Document component props and usage:
+
+```tsx
+/**
+ * Button component with variants and loading states.
+ * 
+ * @example
+ * ```tsx
+ * <Button variant="primary" loading={isSubmitting}>
+ *   Submit
+ * </Button>
+ * ```
+ */
+export interface ButtonProps {
+  variant?: "primary" | "secondary" | "outline";
+  loading?: boolean;
+  children: ReactNode;
+}
+```
+
+## 🎓 Learning Resources
+
+### Reference Files
+- **API Route Example**: `src/app/api/auth/login/route.ts`
+- **Feature Example**: `src/features/auth/login.ts`
+- **Component Example**: `src/components/ui/Button.tsx`
+- **Template Example**: `src/components/templates/Hero.tsx`
+
+### Documentation
+- **Main Documentation**: `docs/overview.md` - Complete documentation index
+- **Documentation Structure**: Use `overview.md` files (NOT `README.md` files in docs)
+- **Cursor Prompts**: See `cursor_prompts.md` in root for ready-to-use prompts
+- **Cursor Workflow**: `docs/extras/cursor-ai-workflow.md` - AI development guide
+- **Security Docs**: `docs/security/middleware.md` - Complete 7-layer security architecture
+
+## ✔️ Summary of Cursor Expectations
+
+Cursor MUST:
+- Follow folder structure exactly
+- Never mix UI inside features
+- Never use client SDK in server logic
+- Validate all inputs with Zod
+- Use Stripe + Firebase according to architecture
+- Follow the provided naming conventions
+- Add file headers and JSDoc comments
+- Use Server Components by default
+- Handle errors gracefully with proper status codes
+- Return consistent API response format: `{ success: boolean, data?: any, error?: string }`
+- Support responsive design (mobile-first)
+- Use DaisyUI components for UI consistency
+- Use `getEnv()` helper for environment variable access
+- Handle missing Firebase configuration gracefully (boilerplate-friendly)
+- Exclude webhooks from CSRF protection
+- Return 401 for API routes, redirect for pages when auth required
+- Reference `cursor_prompts.md` for common tasks
+- Use `overview.md` for documentation (not `README.md` in docs folder)
+
+## 🎯 Production-Tested Patterns
+
+**Reference Implementation:**
+- ShipSafe.st is the production-tested reference implementation
+- All patterns validated in ThinkMate.online production deployment
+- Middleware includes all security improvements from production experience
+
+**Key Production Patterns:**
+- Webhook CSRF exclusion (Stripe webhooks use signature verification)
+- API route auth differentiation (401 for APIs, redirect for pages)
+- CSRF cookie optimization (GET requests only)
+- Enhanced security event logging
+- Graceful Firebase configuration handling

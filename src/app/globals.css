@@ -1,0 +1,299 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  @keyframes shimmer {
+    0% { background-position: 0 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  @keyframes opacity {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes appearFromRight {
+    0% { opacity: 0.3; transform: translate(15%, 0px); }
+    100% { opacity: 1; transform: translate(0); }
+  }
+
+  @keyframes wiggle {
+    0%, 20%, 80%, 100% { transform: rotate(0deg); }
+    30%, 60% { transform: rotate(-2deg); }
+    40%, 70% { transform: rotate(2deg); }
+    45% { transform: rotate(-4deg); }
+    55% { transform: rotate(4deg); }
+  }
+
+  @keyframes popup {
+    0% { transform: scale(0.8); opacity: 0.8; }
+    50% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+}
+
+html,
+body {
+  scroll-behavior: smooth !important;
+}
+
+progress::-webkit-progress-value {
+  transition: 0.6s width ease-out;
+}
+
+/* ShipSafe Branded Gradient - Security-focused blue/green spectrum */
+.btn-gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%) !important;
+  background-size: 200% 200% !important;
+  animation: shimmer 3s ease infinite !important;
+  border: 0 !important;
+  border-color: transparent !important;
+  color: white !important;
+  box-shadow: 0 4px 15px 0 rgba(102, 126, 234, 0.4) !important;
+  transition: all 0.3s ease !important;
+}
+
+.btn-gradient:hover {
+  background-position: 100% 0 !important;
+  box-shadow: 0 6px 20px 0 rgba(102, 126, 234, 0.6) !important;
+  transform: translateY(-2px) !important;
+}
+
+.btn-gradient:disabled {
+  background: rgb(107 114 128 / 0.3) !important;
+  color: rgb(156 163 175) !important;
+}
+
+.btn {
+  text-transform: capitalize !important;
+  font-weight: 500 !important;
+}
+
+/* Smooth transitions for all interactive elements */
+button,
+a,
+input,
+select,
+textarea {
+  transition-property: color, background-color, border-color, transform, box-shadow;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+/* Enhanced focus states */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  ring-width: 2px;
+}
+
+/* Card hover effects */
+.card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Badge hover effects */
+.badge {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Modal animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Enhanced button hover states */
+.btn:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.btn:not(:disabled):active {
+  transform: translateY(0);
+}
+
+/* Code syntax highlighting - Enhanced colors */
+.hljs {
+  background: transparent !important;
+  padding: 0 !important;
+  color: #e2e8f0 !important; /* slate-200 */
+  font-family: 'Fira Code', 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace !important;
+}
+
+pre code.hljs {
+  display: block;
+  padding: 0 !important;
+  overflow-x: auto;
+  font-family: 'Fira Code', 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace !important;
+  line-height: 1.75 !important;
+  tab-size: 2 !important;
+  -moz-tab-size: 2 !important;
+}
+
+code.hljs {
+  padding: 0.2rem 0.4rem;
+  font-family: 'Fira Code', 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace !important;
+}
+
+/* Ensure proper indentation in code blocks */
+pre {
+  tab-size: 2 !important;
+  -moz-tab-size: 2 !important;
+}
+
+pre code {
+  display: block;
+  white-space: pre !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  tab-size: 2 !important;
+  -moz-tab-size: 2 !important;
+}
+
+/* Syntax highlighting colors - GitHub Dark theme inspired */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-link {
+  color: #c792ea !important; /* purple */
+}
+
+.hljs-function .hljs-keyword {
+  color: #82aaff !important; /* blue */
+}
+
+.hljs-subst {
+  color: #e2e8f0 !important; /* default text */
+}
+
+.hljs-string,
+.hljs-title,
+.hljs-name,
+.hljs-type,
+.hljs-attribute,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition,
+.hljs-variable,
+.hljs-template-tag,
+.hljs-template-variable {
+  color: #c3e88d !important; /* green */
+}
+
+.hljs-comment,
+.hljs-quote,
+.hljs-deletion,
+.hljs-meta {
+  color: #546e7a !important; /* gray */
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-doctag,
+.hljs-title,
+.hljs-section,
+.hljs-type,
+.hljs-name,
+.hljs-strong {
+  font-weight: bold;
+}
+
+.hljs-number,
+.hljs-literal {
+  color: #f78c6c !important; /* orange */
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+  color: #ffcb6b !important; /* yellow */
+}
+
+.hljs-attr {
+  color: #ff5370 !important; /* red-pink */
+}
+
+.hljs-params {
+  color: #82aaff !important; /* blue */
+}
+
+.hljs-class .hljs-title {
+  color: #ffcb6b !important; /* yellow */
+}
+
+.hljs-tag {
+  color: #f07178 !important; /* red */
+}
+
+.hljs-tag .hljs-name {
+  color: #f07178 !important; /* red */
+}
+
+.hljs-tag .hljs-attr {
+  color: #c792ea !important; /* purple */
+}
+
+/* Shell/Bash specific styling */
+.language-bash .hljs,
+.language-sh .hljs,
+.language-shell .hljs,
+.language-zsh .hljs {
+  color: #a8a8a8 !important;
+}
+
+.language-bash .hljs-comment,
+.language-sh .hljs-comment,
+.language-shell .hljs-comment,
+.language-zsh .hljs-comment {
+  color: #6a737d !important;
+  font-style: italic;
+}
+
+/* Better spacing for code blocks - padding handled by component */
+pre code.hljs {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Ensure code blocks have proper line spacing */
+pre code {
+  line-height: 1.75 !important;
+  letter-spacing: 0.01em;
+}
+
+/* Better indentation support */
+pre {
+  text-align: left;
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+/* Improve readability of code */
+.hljs {
+  font-size: 0.875rem !important; /* 14px */
+  line-height: 1.75 !important;
+}
