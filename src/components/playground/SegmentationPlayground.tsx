@@ -2,12 +2,12 @@
  * -----------------------------------------------------------------------------
  * ShipSafe Playground Components — SegmentationPlayground.tsx
  * -----------------------------------------------------------------------------
- * Client UI for Slice 1 of the classical segmentation playground.
- * Handles image upload/preview and wires pure Otsu logic from features/.
+ * Client UI for the classical segmentation playground.
+ * Upload once, pick a method (Otsu / Canny / k-means), show one result panel.
  *
  * Security:
  *   - Client-side only (no API, no Admin SDK, no CSRF surface)
- *   - Image never leaves the browser in Slice 1
+ *   - Image never leaves the browser
  *
  * Used by:
  *   - src/app/playground/page.tsx
@@ -17,27 +17,50 @@
 
 "use client";
 
-import { ChangeEvent, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { applyCanny } from "@/features/segmentation/canny";
+import { applyKMeans } from "@/features/segmentation/kmeans";
 import { applyOtsu } from "@/features/segmentation/otsu";
+import type { SegmentationMethod } from "@/features/segmentation/types";
+
+interface SourceImage {
+  rgba: Uint8ClampedArray;
+  width: number;
+  height: number;
+}
+
+const METHODS: { id: SegmentationMethod; label: string }[] = [
+  { id: "otsu", label: "Otsu" },
+  { id: "canny", label: "Canny" },
+  { id: "kmeans", label: "k-means" },
+];
 
 /**
- * SegmentationPlayground — upload an image and preview original + Otsu mask.
+ * SegmentationPlayground — upload an image and preview one classical method.
  */
 export default function SegmentationPlayground() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const sourceRef = useRef<SourceImage | null>(null);
+
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
-  const [maskUrl, setMaskUrl] = useState<string | null>(null);
-  const [threshold, setThreshold] = useState<number | null>(null);
+  const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [method, setMethod] = useState<SegmentationMethod>("otsu");
+  const [metaLabel, setMetaLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
 
-  const resetResults = () => {
-    setMaskUrl((prev) => {
+  // Simple method params (display + live re-run)
+  const [cannyLow, setCannyLow] = useState(50);
+  const [cannyHigh, setCannyHigh] = useState(150);
+  const [kMeansK, setKMeansK] = useState(4);
+
+  const resetResult = () => {
+    setResultUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return null;
     });
-    setThreshold(null);
+    setMetaLabel(null);
   };
 
   const clearOriginal = () => {
@@ -46,12 +69,66 @@ export default function SegmentationPlayground() {
       return null;
     });
     setFileName(null);
+    sourceRef.current = null;
   };
+
+  const runMethod = async (
+    source: SourceImage,
+    selected: SegmentationMethod
+  ) => {
+    setError(null);
+    setIsProcessing(true);
+    resetResult();
+
+    try {
+      let rgba: Uint8ClampedArray;
+      let label: string;
+
+      if (selected === "otsu") {
+        const result = applyOtsu(source.rgba, source.width, source.height);
+        rgba = result.rgba;
+        label = `Threshold: ${result.threshold}`;
+      } else if (selected === "canny") {
+        const result = applyCanny(source.rgba, source.width, source.height, {
+          lowThreshold: cannyLow,
+          highThreshold: cannyHigh,
+        });
+        rgba = result.rgba;
+        label = `Low ${result.lowThreshold} / High ${result.highThreshold}`;
+      } else {
+        const result = applyKMeans(source.rgba, source.width, source.height, {
+          k: kMeansK,
+        });
+        rgba = result.rgba;
+        label = `k=${result.k} · ${result.iterations} iterations`;
+      }
+
+      const url = await rgbaToObjectUrl(rgba, source.width, source.height);
+      setResultUrl(url);
+      setMetaLabel(label);
+    } catch (err) {
+      console.error("Segmentation failed:", err);
+      setError(
+        err instanceof Error ? err.message : "Could not process this image."
+      );
+      resetResult();
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Re-run when method or params change (if an image is loaded)
+  useEffect(() => {
+    const source = sourceRef.current;
+    if (!source) return;
+    void runMethod(source, method);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional param-driven re-run
+  }, [method, cannyLow, cannyHigh, kMeansK]);
 
   const processImageFile = async (file: File) => {
     setError(null);
     setIsProcessing(true);
-    resetResults();
+    resetResult();
     clearOriginal();
 
     const objectUrl = URL.createObjectURL(file);
@@ -60,22 +137,16 @@ export default function SegmentationPlayground() {
 
     try {
       const image = await loadImage(objectUrl);
-      const { width, height, rgba } = drawToRgba(image);
-      const result = applyOtsu(rgba, width, height);
-      const maskBlobUrl = await rgbaToObjectUrl(
-        result.maskRgba,
-        result.width,
-        result.height
-      );
-
-      setMaskUrl(maskBlobUrl);
-      setThreshold(result.threshold);
+      const source = drawToRgba(image);
+      sourceRef.current = source;
+      await runMethod(source, method);
     } catch (err) {
-      console.error("Otsu processing failed:", err);
+      console.error("Image load failed:", err);
       setError(
         err instanceof Error ? err.message : "Could not process this image."
       );
-      resetResults();
+      resetResult();
+      clearOriginal();
     } finally {
       setIsProcessing(false);
     }
@@ -83,9 +154,7 @@ export default function SegmentationPlayground() {
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     if (!file.type.startsWith("image/")) {
       setError("Please upload an image file (PNG, JPEG, WebP, etc.).");
@@ -97,12 +166,19 @@ export default function SegmentationPlayground() {
 
   const handleClear = () => {
     setError(null);
-    resetResults();
+    resetResult();
     clearOriginal();
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
+
+  const resultTitle =
+    method === "otsu"
+      ? "Otsu binary mask"
+      : method === "canny"
+        ? "Canny edges"
+        : "k-means clusters";
 
   return (
     <div className="space-y-6">
@@ -110,8 +186,7 @@ export default function SegmentationPlayground() {
         <div>
           <p className="font-medium">1. Upload an image</p>
           <p className="text-sm text-base-content/70">
-            Click the button below, pick a fruit (or any) photo, then Otsu runs
-            automatically.
+            Click the button below to upload your photo.
           </p>
         </div>
 
@@ -122,7 +197,7 @@ export default function SegmentationPlayground() {
             accept="image/*"
             onChange={handleFileChange}
             className="sr-only"
-            aria-label="Upload image for Otsu segmentation"
+            aria-label="Upload image for segmentation"
           />
           <button
             type="button"
@@ -132,7 +207,7 @@ export default function SegmentationPlayground() {
           >
             Choose image
           </button>
-          {(originalUrl || maskUrl) && (
+          {(originalUrl || resultUrl) && (
             <button
               type="button"
               className="btn btn-ghost"
@@ -151,6 +226,75 @@ export default function SegmentationPlayground() {
         )}
       </div>
 
+      <div className="rounded-box border border-base-300 bg-base-200/40 p-4 md:p-6 space-y-4">
+        <div>
+          <p className="font-medium">2. Choose a method</p>
+          <p className="text-sm text-base-content/70">
+            View one result panel at a time.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Segmentation method">
+          {METHODS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={method === item.id}
+              className={`btn btn-sm ${method === item.id ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => setMethod(item.id)}
+              disabled={isProcessing}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        {method === "canny" && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="form-control w-full">
+              <span className="label-text text-sm mb-1">Low threshold: {cannyLow}</span>
+              <input
+                type="range"
+                min={0}
+                max={255}
+                value={cannyLow}
+                onChange={(e) => setCannyLow(Number(e.target.value))}
+                className="range range-primary range-sm"
+                disabled={isProcessing}
+              />
+            </label>
+            <label className="form-control w-full">
+              <span className="label-text text-sm mb-1">High threshold: {cannyHigh}</span>
+              <input
+                type="range"
+                min={0}
+                max={255}
+                value={cannyHigh}
+                onChange={(e) => setCannyHigh(Number(e.target.value))}
+                className="range range-primary range-sm"
+                disabled={isProcessing}
+              />
+            </label>
+          </div>
+        )}
+
+        {method === "kmeans" && (
+          <label className="form-control w-full max-w-xs">
+            <span className="label-text text-sm mb-1">Clusters (k): {kMeansK}</span>
+            <input
+              type="range"
+              min={2}
+              max={8}
+              value={kMeansK}
+              onChange={(e) => setKMeansK(Number(e.target.value))}
+              className="range range-primary range-sm"
+              disabled={isProcessing}
+            />
+          </label>
+        )}
+      </div>
+
       {error && (
         <div role="alert" className="alert alert-error">
           <span>{error}</span>
@@ -160,18 +304,18 @@ export default function SegmentationPlayground() {
       {isProcessing && (
         <div className="flex items-center gap-2 text-sm text-base-content/70">
           <span className="loading loading-spinner loading-sm" />
-          Running Otsu thresholding…
+          Running {METHODS.find((m) => m.id === method)?.label}…
         </div>
       )}
 
       {!originalUrl && !isProcessing && (
         <p className="text-base-content/60">
-          After upload you will see the original on the left and the Otsu binary
-          mask on the right.
+          After upload, you will see the original on the left and the selected
+          method result on the right.
         </p>
       )}
 
-      {(originalUrl || maskUrl) && (
+      {(originalUrl || resultUrl) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <figure className="space-y-2">
             <figcaption className="text-sm font-medium">Original</figcaption>
@@ -186,24 +330,22 @@ export default function SegmentationPlayground() {
           </figure>
 
           <figure className="space-y-2">
-            <figcaption className="text-sm font-medium flex items-center justify-between gap-2">
-              <span>Otsu binary mask</span>
-              {threshold !== null && (
-                <span className="badge badge-outline">
-                  Threshold: {threshold}
-                </span>
+            <figcaption className="text-sm font-medium flex items-center justify-between gap-2 flex-wrap">
+              <span>{resultTitle}</span>
+              {metaLabel && (
+                <span className="badge badge-outline">{metaLabel}</span>
               )}
             </figcaption>
-            {maskUrl ? (
+            {resultUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={maskUrl}
-                alt="Otsu binary segmentation mask"
+                src={resultUrl}
+                alt={`${resultTitle} result`}
                 className="w-full max-h-96 object-contain bg-base-200 rounded-lg"
               />
             ) : (
               <div className="w-full h-48 bg-base-200 rounded-lg flex items-center justify-center text-sm text-base-content/50">
-                {isProcessing ? "Processing…" : "No mask yet"}
+                {isProcessing ? "Processing…" : "No result yet"}
               </div>
             )}
           </figure>
@@ -228,11 +370,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 /**
  * drawToRgba() — draws an image to a canvas and returns RGBA pixels.
  */
-function drawToRgba(image: HTMLImageElement): {
-  width: number;
-  height: number;
-  rgba: Uint8ClampedArray;
-} {
+function drawToRgba(image: HTMLImageElement): SourceImage {
   const width = image.naturalWidth || image.width;
   const height = image.naturalHeight || image.height;
 
@@ -250,7 +388,11 @@ function drawToRgba(image: HTMLImageElement): {
 
   ctx.drawImage(image, 0, 0);
   const imageData = ctx.getImageData(0, 0, width, height);
-  return { width, height, rgba: imageData.data };
+  return {
+    width,
+    height,
+    rgba: new Uint8ClampedArray(imageData.data),
+  };
 }
 
 /**
@@ -275,7 +417,7 @@ async function rgbaToObjectUrl(
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((result) => {
       if (!result) {
-        reject(new Error("Failed to encode mask image."));
+        reject(new Error("Failed to encode result image."));
         return;
       }
       resolve(result);

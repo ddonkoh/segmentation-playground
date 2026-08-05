@@ -162,6 +162,7 @@ export function applyOtsu(
   return {
     threshold,
     maskRgba,
+    rgba: maskRgba,
     width,
     height,
   };

@@ -10,25 +10,26 @@
  *
  * Used by:
  *   - features/segmentation/otsu.ts
+ *   - features/segmentation/canny.ts
+ *   - features/segmentation/kmeans.ts
  *   - components/playground/SegmentationPlayground.tsx
  *
  * -----------------------------------------------------------------------------
  */
 
 /**
- * Result of Otsu thresholding on an RGBA image buffer.
+ * Supported classical methods in the playground method picker.
  */
-export interface OtsuResult {
-  /**
-   * Optimal threshold in [0, 255] that maximizes between-class variance.
-   */
-  threshold: number;
+export type SegmentationMethod = "otsu" | "canny" | "kmeans";
 
+/**
+ * Shared RGBA result shape for playground rendering.
+ */
+export interface SegmentationImageResult {
   /**
-   * Binary RGBA mask: each pixel is either black (0,0,0,255) or white (255,255,255,255).
-   * Length is always width * height * 4.
+   * Output RGBA buffer (length width * height * 4).
    */
-  maskRgba: Uint8ClampedArray;
+  rgba: Uint8ClampedArray;
 
   /**
    * Image width in pixels.
@@ -39,4 +40,49 @@ export interface OtsuResult {
    * Image height in pixels.
    */
   height: number;
+}
+
+/**
+ * Result of Otsu thresholding on an RGBA image buffer.
+ */
+export interface OtsuResult extends SegmentationImageResult {
+  /**
+   * Optimal threshold in [0, 255] that maximizes between-class variance.
+   */
+  threshold: number;
+
+  /**
+   * Binary RGBA mask (alias of rgba for backwards compatibility).
+   */
+  maskRgba: Uint8ClampedArray;
+}
+
+/**
+ * Result of Canny edge detection.
+ */
+export interface CannyResult extends SegmentationImageResult {
+  /**
+   * Low hysteresis threshold used.
+   */
+  lowThreshold: number;
+
+  /**
+   * High hysteresis threshold used.
+   */
+  highThreshold: number;
+}
+
+/**
+ * Result of k-means color quantization / segmentation.
+ */
+export interface KMeansResult extends SegmentationImageResult {
+  /**
+   * Number of clusters (k).
+   */
+  k: number;
+
+  /**
+   * Iterations performed until convergence or max.
+   */
+  iterations: number;
 }

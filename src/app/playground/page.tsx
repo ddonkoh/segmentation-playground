@@ -2,7 +2,7 @@
  * -----------------------------------------------------------------------------
  * ShipSafe Playground Page — /playground
  * -----------------------------------------------------------------------------
- * Public classical image segmentation playground (Slice 1: Otsu only).
+ * Public classical image segmentation playground (Otsu, Canny, k-means).
  * This is the primary demo surface for the deployed app (root `/` redirects here).
  *
  * Security:
@@ -20,7 +20,7 @@ import SegmentationPlayground from "@/components/playground/SegmentationPlaygrou
 export const metadata: Metadata = generateSEOMetadata({
   title: "Segmentation Playground",
   description:
-    "Classical image segmentation playground — upload an image and preview Otsu thresholding.",
+    "Classical image segmentation playground — upload an image and compare Otsu, Canny, and k-means.",
   path: "/playground",
 });
 
@@ -33,8 +33,8 @@ export default function PlaygroundPage() {
             Segmentation Playground
           </h1>
           <p className="text-base-content/70 max-w-2xl">
-            Upload an image and run pure TypeScript Otsu thresholding. More
-            classical methods (Canny, watershed, k-means) come later.
+            Upload an image and run classical image segmentation methods on it: Choose between Otsu,
+            Canny, or k-means and view the results one at a time.
           </p>
         </div>
         <SegmentationPlayground />
