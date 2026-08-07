@@ -16,6 +16,7 @@
 import type { Metadata } from "next";
 import { generateSEOMetadata } from "@/lib/seo";
 import SegmentationPlayground from "@/components/playground/SegmentationPlayground";
+import BuiltDuringBuildSprint from "@/components/ui/BuiltDuringBuildSprint";
 
 export const metadata: Metadata = generateSEOMetadata({
   title: "Segmentation Playground",
@@ -26,7 +27,7 @@ export const metadata: Metadata = generateSEOMetadata({
 
 export default function PlaygroundPage() {
   return (
-    <main className="min-h-screen bg-base-100">
+    <main className="min-h-screen bg-base-100 pb-20">
       <section className="max-w-5xl mx-auto px-4 py-10 md:py-14">
         <div className="mb-8 space-y-2">
           <h1 className="text-3xl md:text-4xl font-bold">
@@ -39,6 +40,10 @@ export default function PlaygroundPage() {
         </div>
         <SegmentationPlayground />
       </section>
+
+      <div className="fixed bottom-4 right-4 z-50">
+        <BuiltDuringBuildSprint refSlug="segmentation-playground" />
+      </div>
     </main>
   );
 }
